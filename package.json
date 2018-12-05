@@ -1,0 +1,36 @@
+{
+  "name": "@versent/demo-lambda-safe-deployments",
+  "version": "0.0.1",
+  "description": "Lambda with typescript skeleton project.",
+  "main": "./index.js",
+  "types": "./index.d.ts",
+  "author": "Sam Dammers <sdammers@transurban.tech>",
+  "license": "MIT",
+  "repository": "https://github.com/Versent/demo-lambda-safe-deployments",
+  "scripts": {
+    "lint": "tslint --force --format stylish --project .",
+    "pretest": "tsc -p .",
+    "test": "istanbul cover _mocha -- -t 30000 dist/test",
+    "remap": "remap-istanbul --input ./coverage/coverage.json --output ./coverage/lcov-final.info --type lcovonly",
+    "prepare": "tsc -p ."
+  },
+  "devDependencies": {
+    "@types/bunyan": "^1.8.2",
+    "@types/chai": "^4.0.4",
+    "@types/lodash": "^4.14.68",
+    "@types/mocha": "^2.2.40",
+    "@types/node": "^7.0.12",
+    "aws-sdk": "^2.41.0",
+    "chai": "^4.0.2",
+    "istanbul": "^0.4.5",
+    "mocha": "^3.2.0",
+    "remap-istanbul": "^0.9.5",
+    "ts-node": "^3.3.0",
+    "tslint": "^5.7.0",
+    "typescript": "^2.5.3"
+  },
+  "dependencies": {
+    "bunyan": "^1.8.12",
+    "lodash": "^4.17.4"
+  }
+}

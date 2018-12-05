@@ -1,0 +1,13 @@
+# Repo Files
+src/
+test/
+coverage/
+dist/
+sonar-project.properties
+tsconfig.json
+tslint.json
+.envrc.example
+
+# Jenkins CI/CD Files
+nbos-cloud-config/
+.scannerwork/

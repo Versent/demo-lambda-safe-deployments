@@ -1,0 +1,5 @@
+export AWS_REGION=us-west-2
+export AWS_ACCOUNT_ID=
+export PRODUCT=demo
+export ENV=dev
+export ENV_NO=1

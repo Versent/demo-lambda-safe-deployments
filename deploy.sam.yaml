@@ -1,0 +1,118 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Parameters:
+    FunctionAlias:
+      Type: String
+    Environment:
+      Type: String
+    EnvironmentNumber:
+      Type: String
+    Product:
+      Type: String
+
+Conditions:
+  # If Env = dvd or tst, return false
+  DeploymentRollbackEnabled:
+    !Or [
+      !Equals [!Ref Environment, tst],
+      !Equals [!Ref Environment, stg],
+      !Equals [!Ref Environment, prd]
+    ]
+
+Resources:
+  Function:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub "${Product}-${Environment}-${EnvironmentNumber}-lambda-deployment-preferences"
+      Handler: index.handler
+      Runtime: nodejs6.10
+      CodeUri: ./handler.zip
+      AutoPublishAlias: !Ref FunctionAlias
+      DeploymentPreference:
+        #If DeploymentRollbackEnabled == true then do Canary deployment
+        Type: !If [DeploymentRollbackEnabled, Canary10Percent5Minutes, AllAtOnce]
+        Alarms:
+        # A list of alarms that you want to monitor
+        - !Ref AliasErrorMetricGreaterThanZeroAlarm
+        - !Ref LatestVersionErrorMetricGreaterThanZeroAlarm
+        Hooks:
+          # Validation Lambda functions that are run before & after traffic shifting
+          PreTraffic: !Ref PreTrafficLambdaFunction
+      Policies:
+        - AWSLambdaBasicExecutionRole
+        - AWSXrayWriteOnlyAccess
+        - AmazonSSMFullAccess
+
+  AliasErrorMetricGreaterThanZeroAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmDescription: Lambda Function Error > 0
+      ComparisonOperator: GreaterThanThreshold
+      Dimensions:
+        - Name: Resource
+          Value: !Sub "${Function}:${FunctionAlias}"
+        - Name: FunctionName
+          Value: !Ref Function
+      EvaluationPeriods: 2
+      MetricName: Errors
+      Namespace: AWS/Lambda
+      Period: 60
+      Statistic: Sum
+      # If DeploymentRollbackEnabled is false, Raise threshold so high to ensure alarm status impossible
+      Threshold: !If [DeploymentRollbackEnabled, 0, 9000]
+
+  LatestVersionErrorMetricGreaterThanZeroAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmDescription: Lambda Function Error > 0
+      ComparisonOperator: GreaterThanThreshold
+      Dimensions:
+        - Name: Resource
+          Value: !Sub "${Function}:${FunctionAlias}"
+        - Name: FunctionName
+          Value: !Ref Function
+        - Name: ExecutedVersion
+          Value: !GetAtt Function.Version.Version
+      EvaluationPeriods: 2
+      MetricName: Errors
+      Namespace: AWS/Lambda
+      Period: 60
+      Statistic: Sum
+      # If DeploymentRollbackEnabled is false, Raise threshold so high to ensure alarm status impossible
+      Threshold: !If [DeploymentRollbackEnabled, 0, 9000]
+
+  PreTrafficLambdaFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      # Hook Functions must start with 'CodeDeployHook_' to conform with service role permissions
+      FunctionName: !Sub "CodeDeployHook_${Product}-${Environment}-${EnvironmentNumber}-lambda-deployment-preferences"
+      Handler: preTrafficHook.handler
+      Policies:
+        - Version: "2012-10-17"
+          Statement:
+          - Effect: "Allow"
+            Action:
+              - "codedeploy:PutLifecycleEventHookExecutionStatus"
+            Resource:
+              !Sub 'arn:aws:codedeploy:${AWS::Region}:${AWS::AccountId}:deploymentgroup:${ServerlessDeploymentApplication}/*'
+        - Version: "2012-10-17"
+          Statement:
+          - Effect: "Allow"
+            Action:
+              - "lambda:InvokeFunction"
+            Resource: !Ref Function.Version
+      Runtime: nodejs6.10
+      DeploymentPreference:
+        Enabled: false
+      Timeout: 5
+      Environment:
+        Variables:
+          NewVersion: !Ref Function.Version
+          # If DeploymentRollbackEnabled is false, handle inside lambda to always tell codeDeploy to continue
+          HookEnabled: !If [DeploymentRollbackEnabled, true, false]
+
+Outputs:
+  FunctionArn:
+    Value: !GetAtt Function.Arn
+    Export:
+      Name: !Sub "${AWS::StackName}-FunctionArn"
